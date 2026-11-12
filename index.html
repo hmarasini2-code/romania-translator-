@@ -3,218 +3,200 @@
 <html lang="ne">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Live Nepali Romanian Translator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Voice Translator</title>
 <style>
-*{box-sizing:border-box}
-body{margin:0;background:#eef2ff;font-family:Arial,sans-serif;color:#172554;padding:15px}
-.app{max-width:480px;margin:15px auto;background:white;padding:20px;border-radius:20px;box-shadow:0 4px 18px #0002}
-h2{text-align:center;color:#4338ca}
-select,button{width:100%;padding:15px;margin:9px 0;border-radius:12px;font-size:16px}
-select{border:1px solid #ccc;background:white}
-button{border:0;background:#4f46e5;color:white;font-weight:bold}
-.start{background:#059669;font-size:19px}
-.stop{background:#dc2626}
-.panel{background:#f1f5f9;padding:14px;margin:12px 0;border-radius:12px;min-height:75px;white-space:pre-wrap}
-.status{text-align:center;color:#087e65;font-weight:bold;min-height:25px}
-.small{font-size:13px;color:#64748b;text-align:center}
+body {
+  font-family: Arial, sans-serif;
+  background: #eef3ff;
+  text-align: center;
+  padding: 15px;
+}
+.container {
+  max-width: 480px;
+  margin: auto;
+  background: white;
+  padding: 20px;
+  border-radius: 18px;
+  box-shadow: 0 3px 15px #0002;
+}
+h2 { color: #174ea6; }
+select, button {
+  width: 100%;
+  padding: 14px;
+  margin: 8px 0;
+  border-radius: 10px;
+  font-size: 17px;
+}
+select { border: 1px solid #aaa; }
+button {
+  border: none;
+  background: #1769e0;
+  color: white;
+  cursor: pointer;
+}
+button:disabled { opacity: .5; }
+.result {
+  background: #f0f4fa;
+  padding: 15px;
+  border-radius: 10px;
+  min-height: 55px;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+.small { font-size: 13px; color: #555; }
 </style>
 </head>
 <body>
-<div class="app">
-<h2>🇳🇵 ↔ 🇷🇴</h2>
-<h3 style="text-align:center">Live Voice Translator</h3>
-<p style="text-align:center">बोल्नुहोस्, अनुवाद आफैँ हुन्छ।</p>
+<div class="container">
+<h2>🎤 My Voice Translator</h2>
+<p>Romanian ↔ Nepali / Hindi</p>
 
-<label>तपाईंले बोल्ने भाषा:</label>
-<select id="localLang">
-<option value="ne">नेपाली (Nepali)</option>
-<option value="hi">हिन्दी (Hindi)</option>
+<label>अनुवादको भाषा छान्नुहोस्</label>
+<select id="language">
+  <option value="ne">नेपाली</option>
+  <option value="hi">हिन्दी</option>
 </select>
 
-<div class="panel">
-<b>तपाईंले बोलेको:</b>
-<div id="heard">यहाँ आवाजबाट आएको शब्द देखिन्छ।</div>
-</div>
+<hr>
 
-<div class="panel">
-<b>अनुवाद:</b>
-<div id="translated">Translation appears here.</div>
-</div>
-
-<div class="status" id="status">सुरु गर्न बटन थिच्नुहोस्।</div>
-
-<button class="start" id="startBtn" onclick="startConversation()">
-🎤 सुरु गर्नुहोस् / Start Conversation
+<h3>🇷🇴 Romanian → नेपाली / हिन्दी</h3>
+<button onclick="startListening('ro-RO','ro')">
+🎙️ रोमानियन बोल्नुहोस्
 </button>
+<div class="result" id="result1">अनुवाद यहाँ देखिन्छ</div>
+<button onclick="speak('result1','target')">🔊 आवाज सुन्नुहोस्</button>
 
-<button class="stop" onclick="stopConversation()">
-⏹ रोक्नुहोस् / Stop
+<hr>
+
+<h3>नेपाली / हिन्दी → 🇷🇴 Romanian</h3>
+<button onclick="startListening('source','target')">
+🎙️ नेपाली / हिन्दी बोल्नुहोस्
 </button>
+<div class="result" id="result2">अनुवाद यहाँ देखिन्छ</div>
+<button onclick="speak('result2','ro-RO')">🔊 Romanian आवाज सुन्नुहोस्</button>
 
-<p class="small">
-पहिले नेपाली वा हिन्दी बोल्नुहोस्। त्यसपछि रोमानियन बोल्नुहोस्।
-एपले पालैपालो भाषा परिवर्तन गर्नेछ।
-</p>
+<p id="status" class="small">माइक्रोफोन थिचेर बोल्न सुरु गर्नुहोस्।</p>
 </div>
 
 <script>
-let active=false;
-let busy=false;
-let currentSpeaker="local";
-let timer=null;
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
 
-function scheduleListen(){
- clearTimeout(timer);
- timer=setTimeout(listenTurn,900);
-}
+let currentTranslation = "";
 
-function startConversation(){
- const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!SR){
-  alert("यो Browser मा Voice Recognition उपलब्ध छैन। Android Chrome प्रयोग गर्नुहोस्।");
-  return;
- }
- if(!window.isSecureContext){
-  alert("सुरक्षित HTTPS वेबसाइटबाट खोल्नुहोस्।");
-  return;
- }
- speechSynthesis.cancel();
- active=true;
- busy=false;
- currentSpeaker="local";
- document.getElementById("heard").textContent="";
- document.getElementById("translated").textContent="";
- document.getElementById("status").textContent="माइक्रोफोन अनुमति दिनुहोस्...";
- listenTurn();
-}
+async function translateText(text, from, to, outputId) {
+  const output = document.getElementById(outputId);
+  output.innerText = "अनुवाद हुँदैछ...";
 
-function stopConversation(){
- active=false;
- busy=false;
- clearTimeout(timer);
- speechSynthesis.cancel();
- document.getElementById("status").textContent="अनुवाद रोकियो।";
-}
+  try {
+    const url = "https://api.mymemory.translated.net/get?q=" +
+      encodeURIComponent(text) +
+      "&langpair=" + from + "|" + to;
 
-function listenTurn(){
- if(!active||busy)return;
+    const response = await fetch(url);
+    const data = await response.json();
 
- const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!SR)return;
+    if (data.responseStatus !== 200) {
+      throw new Error("Translation unavailable");
+    }
 
- const local=document.getElementById("localLang").value;
- const language=currentSpeaker==="local"
-   ? (local==="ne"?"ne-NP":"hi-IN")
-   : "ro-RO";
-
- document.getElementById("status").textContent=
- currentSpeaker==="local"
- ? "🎤 नेपाली / हिन्दी बोल्नुहोस्..."
- : "🎤 Romanian vorbiți...";
-
- const rec=new SR();
- rec.lang=language;
- rec.continuous=false;
- rec.interimResults=false;
- rec.maxAlternatives=1;
-
- rec.onresult=async function(event){
-  const sentence=event.results[0][0].transcript.trim();
-  if(!sentence||busy)return;
-
-  busy=true;
-  rec.stop();
-  document.getElementById("heard").textContent=sentence;
-  document.getElementById("status").textContent="अनुवाद हुँदैछ...";
-
-  const from=currentSpeaker==="local"?local:"ro";
-  const to=currentSpeaker==="local"?"ro":local;
-
-  try{
-   const bytes=new TextEncoder().encode(sentence).length;
-   if(bytes>450)throw Error("वाक्य धेरै लामो भयो।");
-
-   const params=new URLSearchParams({
-    q:sentence,
-    langpair:from+"|"+to
-   });
-
-   const response=await fetch(
-    "https://api.mymemory.translated.net/get?"+params
-   );
-
-   if(!response.ok)throw Error("Translation service unavailable");
-
-   const data=await response.json();
-
-   if(data.responseStatus!==200)
-    throw Error(data.responseDetails||"अनुवाद उपलब्ध भएन");
-
-   const answer=data.responseData.translatedText;
-
-   if(!answer)throw Error("अनुवाद भेटिएन।");
-
-   document.getElementById("translated").textContent=answer;
-
-   currentSpeaker=currentSpeaker==="local"?"ro":"local";
-
-   speakAnswer(answer,to);
-
-  }catch(error){
-   document.getElementById("status").textContent=
-   "समस्या: "+error.message;
-   busy=false;
-   if(active)scheduleListen();
+    currentTranslation = data.responseData.translatedText;
+    output.innerText = currentTranslation;
+    document.getElementById("status").innerText =
+      "अनुवाद पूरा भयो। आवाज सुन्न बटन थिच्नुहोस्।";
+  } catch (error) {
+    output.innerText = "अनुवाद हुन सकेन। इन्टरनेट जाँच गर्नुहोस्।";
+    document.getElementById("status").innerText =
+      "कृपया फेरि प्रयास गर्नुहोस्।";
   }
- };
+}
 
- rec.onerror=function(event){
-  if(!active)return;
-  document.getElementById("status").textContent=
-   event.error==="not-allowed"
-   ?"माइक्रोफोन अनुमति दिनुहोस्।"
-   :"आवाज बुझ्न सकिएन। फेरि बोल्नुहोस्।";
-
-  if(event.error==="not-allowed"||event.error==="service-not-allowed"){
-   active=false;
-   return;
+function startListening(language, direction) {
+  if (!SpeechRecognition) {
+    alert("कृपया Android Chrome मा यो एप खोल्नुहोस्।");
+    return;
   }
-  if(!busy)scheduleListen();
- };
 
- rec.onend=function(){
-  if(active&&!busy)scheduleListen();
- };
+  const selected = document.getElementById("language").value;
+  const sourceLang = language === "source"
+    ? (selected === "ne" ? "ne-NP" : "hi-IN")
+    : "ro-RO";
 
- try{
-  rec.start();
- }catch(error){
-  document.getElementById("status").textContent=
-   "माइक्रोफोन सुरु भएन। फेरि प्रयास गर्नुहोस्।";
- }
+  const from = direction === "ro" ? "ro" : selected;
+  const to = direction === "ro" ? selected : "ro";
+  const outputId = direction === "ro" ? "result1" : "result2";
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = sourceLang;
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  document.getElementById("status").innerText = "🎙️ सुन्दैछु... अब बोल्नुहोस्।";
+
+  recognition.onresult = function(event) {
+    const spoken = event.results[0][0].transcript;
+    document.getElementById("status").innerText =
+      "तपाईंले भन्नुभयो: " + spoken;
+    translateText(spoken, from, to, outputId);
+  };
+
+  recognition.onerror = function(event) {
+    document.getElementById("status").innerText =
+      "आवाज सुन्न समस्या भयो: " + event.error;
+  };
+
+  recognition.onend = function() {
+    // एक पटकको आवाज सुनेपछि रोकिन्छ।
+  };
+
+  recognition.start();
 }
 
-function speakAnswer(text,language){
- speechSynthesis.cancel();
+function speak(outputId, language) {
+  const text = document.getElementById(outputId).innerText;
 
- const voice=new SpeechSynthesisUtterance(text);
- voice.lang=language==="ro"?"ro-RO":
- language==="hi"?"hi-IN":"ne-NP";
- voice.rate=0.9;
+  if (!text || text.includes("अनुवाद")) {
+    alert("पहिले अनुवाद गर्नुहोस्।");
+    return;
+  }
 
- voice.onend=function(){
-  busy=false;
-  if(active)scheduleListen();
- };
+  if (!window.speechSynthesis) {
+    alert("यो ब्राउजरमा आवाज सुविधा उपलब्ध छैन।");
+    return;
+  }
 
- voice.onerror=function(){
-  busy=false;
-  if(active)scheduleListen();
- };
+  speechSynthesis.cancel();
 
- speechSynthesis.speak(voice);
+  const utterance = new SpeechSynthesisUtterance(text);
+  const voices = speechSynthesis.getVoices();
+
+  let lang = language;
+  if (language === "target") {
+    lang = document.getElementById("language").value === "ne"
+      ? "ne-NP" : "hi-IN";
+  }
+
+  utterance.lang = lang;
+
+  const matching = voices.filter(v =>
+    v.lang.toLowerCase().startsWith(lang.slice(0,2).toLowerCase())
+  );
+
+  const female = matching.find(v =>
+    /female|woman|zira|samantha|sara|google.*female/i.test(v.name)
+  );
+
+  if (female) utterance.voice = female;
+  else if (matching.length) utterance.voice = matching[0];
+
+  utterance.rate = 0.9;
+  speechSynthesis.speak(utterance);
 }
+
+speechSynthesis.onvoiceschanged = function() {
+  speechSynthesis.getVoices();
+};
 </script>
 </body>
 </html>
